@@ -30,7 +30,7 @@
     padding: 20px 24px;
     display: flex; align-items: center; gap: 16px;
   }
-  .header h1 { font-family: 'DM Serif Display', serif; font-size: 22px; color: var(--text); }
+  .header h1 { font-family: 'DM Sans', sans-serif; font-size: 20px; font-weight: 700; color: var(--text); text-transform: uppercase; letter-spacing: .5px; }
   .header .badge { background: var(--accent); color: #fff; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px; letter-spacing: .5px; }
   .header .stats { margin-left: auto; display: flex; gap: 20px; }
   .stat { text-align: center; }
@@ -172,6 +172,12 @@
   .answer-btn.wrong { border-color: var(--red); background: rgba(247,85,85,.1); }
   .answer-btn.wrong .ans-letter { background: var(--red); color: #fff; }
   .answer-btn:disabled { cursor: default; }
+  .answer-btn.confirmed {
+    border-color: var(--muted) !important;
+    background: rgba(123,130,160,.12) !important;
+    opacity: .85;
+  }
+  .answer-btn.confirmed .ans-letter { background: var(--muted) !important; color: #fff !important; }
 
   .q-actions { display: flex; gap: 10px; align-items: center; }
   .btn-submit, .btn-next {
@@ -353,50 +359,8 @@
   .sync-btn.success { border-color: var(--green); color: var(--green); background: rgba(62,207,142,.08); }
   .sync-btn.danger  { border-color: var(--red);   color: var(--red);   background: rgba(247,85,85,.08); }
 
-  .sync-panel {
-    background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 8px; padding: 12px; font-size: 12px; color: var(--muted);
-    line-height: 1.6; display: none;
-  }
-  .sync-panel.visible { display: block; }
-  .sync-panel strong { color: var(--text); }
-  .sync-panel ol { padding-left: 16px; margin-top: 6px; }
-  .sync-panel li { margin-bottom: 4px; }
 
   /* ── SECTION PICKER MODAL ── */
-  .spicker-overlay {
-    display: none; position: fixed; inset: 0;
-    background: rgba(0,0,0,.7); z-index: 9999;
-    align-items: center; justify-content: center;
-  }
-  .spicker-overlay.open { display: flex; }
-  .spicker-box {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 16px; padding: 32px; width: 520px; max-width: 95vw;
-    display: flex; flex-direction: column; gap: 20px;
-  }
-  .spicker-box h3 { font-family: 'DM Serif Display', serif; font-size: 22px; color: var(--text); }
-  .spicker-box p  { font-size: 13px; color: var(--muted); margin-top: -12px; line-height: 1.5; }
-  .spicker-cards  { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
-  .spicker-card {
-    background: var(--surface2); border: 2px solid var(--border);
-    border-radius: 12px; padding: 18px 14px; cursor: pointer;
-    text-align: center; transition: all .15s;
-  }
-  .spicker-card:hover  { border-color: var(--accent); background: rgba(79,142,247,.1); }
-  .spicker-card .sp-icon { font-size: 26px; margin-bottom: 8px; }
-  .spicker-card .sp-name { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
-  .spicker-card .sp-cnt  { font-size: 11px; color: var(--muted); }
-  .spicker-card .sp-badge {
-    font-size: 10px; background: rgba(79,142,247,.15); color: var(--accent);
-    border-radius: 20px; padding: 2px 8px; font-weight: 600;
-    display: inline-block; margin-top: 6px;
-  }
-  .spicker-cancel {
-    background: none; border: none; color: var(--muted); font-size: 13px;
-    cursor: pointer; font-family: inherit; text-align: center; padding: 4px;
-  }
-  .spicker-cancel:hover { color: var(--text); }
 
   /* ── REAL EXAM SECTION NAV ── */
   .exam-section-nav {
@@ -441,6 +405,18 @@
   .exam-dot.answered.current { box-shadow: 0 0 0 3px rgba(79,142,247,.35); }
   .exam-dot.skipped { background: rgba(247,195,85,.25); border-color: var(--yellow); }
   .exam-dot.skipped.answered { background: var(--accent); border-color: var(--accent); }
+
+  /* ── BOOKMARK BUTTON ── */
+  .btn-bookmark {
+    position: absolute; top: 16px; right: 16px;
+    background: none; border: none; cursor: pointer;
+    font-size: 20px; line-height: 1; padding: 4px; border-radius: 6px;
+    transition: transform .15s, opacity .15s;
+    opacity: .35;
+  }
+  .btn-bookmark:hover { opacity: .7; transform: scale(1.15); }
+  .btn-bookmark.bookmarked { opacity: 1; }
+  .q-card { position: relative; }
 
   /* ── REVIEW SCREEN ── */
   .review-header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
@@ -511,39 +487,10 @@
 </head>
 <body>
 
-<!-- SECTION PICKER MODAL -->
-<div class="spicker-overlay" id="spicker-overlay">
-  <div class="spicker-box">
-    <h3>Čím začneš?</h3>
-    <p>Vyber sekci, která se zobrazí jako první. Ostatní sekce budou následovat ve zbývajícím pořadí.</p>
-    <div class="spicker-cards">
-      <div class="spicker-card" onclick="startRealExam('single')">
-        <div class="sp-icon">✅</div>
-        <div class="sp-name">Jedna správná</div>
-        <div class="sp-cnt">54 otázek</div>
-        <div class="sp-badge">1 bod / ot.</div>
-      </div>
-      <div class="spicker-card" onclick="startRealExam('multi')">
-        <div class="sp-icon">☑️</div>
-        <div class="sp-name">Více správných</div>
-        <div class="sp-cnt">18 otázek</div>
-        <div class="sp-badge">2 body / ot.</div>
-      </div>
-      <div class="spicker-card" onclick="startRealExam('case')">
-        <div class="sp-icon">📋</div>
-        <div class="sp-name">Případové studie</div>
-        <div class="sp-cnt">3 × 5 otázek</div>
-        <div class="sp-badge">2 body / ot.</div>
-      </div>
-    </div>
-    <button class="spicker-cancel" onclick="closeSectionPicker()">← Zpět</button>
-  </div>
-</div>
 
 <div class="header">
   <div>
-    <div style="font-size:11px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px">V. Pojištění velkých pojistných rizik</div>
-    <h1>Trenér otázek</h1>
+    <h1>V. Pojištění velkých pojistných rizik</h1>
   </div>
   
   <div class="stats">
@@ -639,6 +586,9 @@
         <button class="filter-btn" id="btn-wrong-only" onclick="toggleWrongOnly(this)">
           🔴 Jen špatné <span class="count" id="cnt-wrong-only">0</span>
         </button>
+        <button class="filter-btn" id="btn-bookmarks-only" onclick="toggleBookmarksOnly(this)">
+          ❓ Nejisté <span class="count" id="cnt-bookmarks">0</span>
+        </button>
         <button class="filter-btn" onclick="showStats()">
           📊 Statistiky pokroku
         </button>
@@ -660,15 +610,25 @@
       <button onclick="clearSR()" style="flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--red);padding:9px 4px;border-radius:8px;font-family:inherit;font-size:13px;cursor:pointer" title="Resetovat pokrok">✕ Reset</button>
     </div>
 
-    <button class="start-btn" id="start-btn" onclick="launchTraining()">▶ Spustit rozcvičku</button>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Počet otázek tréninku</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <input type="number" id="training-count" value="50" min="1" max="1214"
+          style="flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text);
+                 padding:9px 12px;border-radius:8px;font-family:inherit;font-size:14px;outline:none;width:100%"
+          oninput="this.value=Math.max(1,Math.min(1214,parseInt(this.value)||1))">
+        <span style="font-size:12px;color:var(--muted);white-space:nowrap">/ <span id="training-max">1214</span></span>
+      </div>
+    </div>
+    <button class="start-btn" id="start-btn" onclick="launchTraining()">▶ Spustit trénink</button>
   </div>
 
   <div class="main">
     <!-- HOME -->
     <div class="screen active" id="screen-home">
       <div class="home-hero">
-        <h2>Připrav se na zkoušku.</h2>
-        <p>1 214 otázek z oficiálního souboru SPOT. Filtruj podle typu, kategorie nebo délky správné odpovědi. Chybné otázky se opakují, dokud si nejsi jistý.</p>
+        <h2>Příprava na zkoušku</h2>
+        <p>1 214 otázek z oficiálního souboru SPOT rozdělených do tří typů — jedna správná, více správných a případové studie. Procvičuj vlastním tempem v tréninku nebo si vyzkoušej ostrý test v podmínkách reálné zkoušky.</p>
       </div>
 
       <div id="wrong-banner" class="wrong-banner" onclick="startWrongOnly()" style="display:none">
@@ -683,8 +643,8 @@
       <div class="mode-cards">
         <div class="mode-card action-card" onclick="launchTraining()">
           <div class="icon">🏋️</div>
-          <h3>Rozcvička</h3>
-          <p>Procvičuj dle nastavení v levém panelu. Chybné otázky se opakují.</p>
+          <h3>Trénink</h3>
+          <p>Náhodné otázky dle počtu nastaveného v levém panelu. Chybné otázky se opakují.</p>
           <div class="action-card-cta">Spustit →</div>
         </div>
         <div class="mode-card action-card" onclick="launchRealExam()">
@@ -732,6 +692,7 @@
           <span class="q-tag" id="q-type-tag"></span>
           <span class="q-tag cat" id="q-cat-tag"></span>
         </div>
+        <button class="btn-bookmark" id="btn-bookmark" onclick="toggleBookmark()" title="Označit jako nejisté" style="display:none">❓</button>
 
         <div class="q-case-info" id="q-case-box" style="display:none">
           <div class="q-case-label">📋 Zadání případové studie</div>
@@ -751,7 +712,6 @@
       <div class="q-actions">
         <button class="btn-submit" id="btn-submit" onclick="submitAnswer()" disabled>Potvrdit</button>
         <button class="btn-next" id="btn-next" onclick="nextQuestion()" style="display:none">Další →</button>
-        <button class="esn-skip-btn" id="btn-skip-exam" onclick="skipExamQuestion()" style="display:none">⏭ Přeskočit</button>
         <button class="known-btn" id="btn-known" onclick="markKnown()" style="display:none">✓ Umím to</button>
         <button class="known-btn" id="btn-remove-wrong" onclick="doRemoveFromWrong()" style="display:none;border-color:var(--red);color:var(--red)">✕ Odebrat ze špatných</button>
         <div class="repeat-flag" id="repeat-flag" style="display:none">
@@ -860,6 +820,7 @@ let state = {
   timerSecs: 0,
   knownSet: new Set(),
   wrongOnly: false,
+  bookmarksOnly: false,
   cntFilter: new Set(['vse'])
 };
 
@@ -881,6 +842,10 @@ function initCats() {
 }
 
 function getFilteredQuestions() {
+  if (state.bookmarksOnly) {
+    const bm = loadBookmarks();
+    return ALL_QUESTIONS.filter(q => bm.has(q.id));
+  }
   if (state.wrongOnly) {
     const _sr = loadSR();
     return ALL_QUESTIONS.filter(q => _sr[q.id] && _sr[q.id].type === 'wrong');
@@ -926,6 +891,13 @@ function getFilteredQuestions() {
   return qs;
 }
 
+function updateTrainingMax() {
+  const qs = getFilteredQuestions();
+  const el = document.getElementById('training-max');
+  if (el) el.textContent = qs.length;
+  const cnt = document.getElementById('training-count');
+  if (cnt) cnt.max = qs.length;
+}
 function updateQueue() {
   state.kat = document.getElementById('cat-select').value;
   const qs = getFilteredQuestions();
@@ -940,8 +912,9 @@ function updateQueue() {
     });
   }
   document.getElementById('start-btn').disabled = qs.length === 0;
+  updateBookmarkBadge();
 }
-
+  updateTrainingMax();
 function toggleCntFilter(el, f) {
   if (f === 'vse') {
     state.cntFilter = new Set(['vse']);
@@ -1044,14 +1017,6 @@ function launchRealExam() {
   startSession();
 }
 
-function selectModeCard(el, m) {
-  state.mode = m;
-  clearInterval(state.timerInterval);
-  state.timerInterval = null;
-  document.getElementById('timer-text').textContent = '';
-  if (document.getElementById('screen-question').classList.contains('active')) showScreen('screen-home');
-  if (document.getElementById('spicker-overlay').classList.contains('open')) closeSectionPicker();
-}
 
 function shuffle(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
@@ -1065,21 +1030,17 @@ function startSession() {
   let qs = getFilteredQuestions();
   if (!qs.length) return;
   
-  if (state.mode === 'realny' && !state.wrongOnly) {
-    // Show section order picker — buildRealExamQueue() is called from startRealExam()
-    document.getElementById('spicker-overlay').classList.add('open');
+  if (state.mode === 'realny') {
+    startRealExam('single');
     return;
-  } else if (state.mode === 'quick') {
-    const n = Math.max(1, parseInt(document.getElementById('quick-count')?.value) || 10);
-    state.queue = shuffle([...qs]).slice(0, n);
   } else {
-    // Separate wrong (priority) from normal active questions
+    // Training: N random questions (SR priority: wrong first, then rest)
+    const n = Math.max(1, parseInt(document.getElementById('training-count')?.value) || 50);
     const srData = loadSR();
     const wrong = qs.filter(q => srData[q.id] && srData[q.id].type === 'wrong');
-    const normal = qs.filter(q => isQuestionDue(q.id) && !(srData[q.id] && srData[q.id].type === 'wrong'));
-    // Wrong questions come first (shuffled), then normal questions (shuffled)
-    state.queue = [...shuffle(wrong), ...shuffle(normal)];
-    if (state.queue.length === 0) state.queue = shuffle([...qs]); // fallback
+    const normal = qs.filter(q => !(srData[q.id] && srData[q.id].type === 'wrong'));
+    const combined = [...shuffle(wrong), ...shuffle(normal)];
+    state.queue = combined.slice(0, n);
   }
 
   state.repeatQueue = [];
@@ -1185,7 +1146,7 @@ function loadQuestion() {
   const srRec = loadSR()[state.currentQ.id];
   const isWrong = srRec && srRec.type === 'wrong';
   document.getElementById('btn-known').style.display = (state.mode !== 'realny' && !isWrong) ? 'inline-block' : 'none';
-  document.getElementById('btn-skip-exam').style.display = 'none';
+  
   document.getElementById('btn-known').textContent = '⚡ Přeskočit – umím';
   document.getElementById('btn-known').style.background = 'transparent';
   document.getElementById('btn-known').style.color = 'var(--muted)';
@@ -1193,6 +1154,13 @@ function loadQuestion() {
   // Show "remove from wrong" button before answering if question is in wrong queue
   const removeWrongBtn = document.getElementById('btn-remove-wrong');
   if (removeWrongBtn) removeWrongBtn.style.display = (state.mode !== 'realny' && isWrong) ? 'inline-block' : 'none';
+
+  // Bookmark button — training only
+  const bmBtn = document.getElementById('btn-bookmark');
+  if (bmBtn) {
+    bmBtn.style.display = state.mode !== 'realny' ? 'block' : 'none';
+    updateBookmarkBtn(q.id);
+  }
 }
 
 let selectedLetters = new Set();
@@ -1235,8 +1203,13 @@ function submitAnswer() {
     btn.disabled = true;
     const l = btn.dataset.letter;
     if (isExam) {
-      // Exam: only highlight the user's selection (neutral blue), no green/red
-      if (selectedLetters.has(l)) btn.classList.add('selected');
+      // Exam: mark confirmed answers with 'confirmed' style
+      btn.classList.remove('selected');
+      if (selectedLetters.has(l)) {
+        btn.classList.add('confirmed');
+        const circle = btn.querySelector('.ans-letter');
+        if (circle) { circle.style.background = 'var(--muted)'; circle.style.color = '#fff'; }
+      }
     } else {
       // Training: show correct/wrong immediately
       if (correctSet.has(l)) btn.classList.add('correct');
@@ -1250,9 +1223,16 @@ function submitAnswer() {
   const pointsForQ = (q.typ === 'Jedna správná odpověď') ? 1 : 2;
 
   if (isExam) {
-    // ── EXAM MODE: save result silently, no feedback ──
-    // (stats are recalculated from examSections in showSummary)
-    card.style.display = 'none';
+    // ── EXAM MODE: save answer immediately + show neutral confirmation ──
+    const sec = state.examSections[state.examSection];
+    if (sec && !sec.answers[q.id]) {
+      sec.answers[q.id] = { selected: [...selectedLetters], correct: isCorrect };
+    }
+    icon.textContent = '✓';
+    msg.innerHTML = '<strong style="color:var(--muted)">Odpověď zaznamenána.</strong> <span style="font-size:12px;color:var(--muted)">Výsledek uvidíš až po dokončení testu.</span>';
+    card.style.background = 'rgba(123,130,160,.08)';
+    card.style.borderColor = 'rgba(123,130,160,.25)';
+    card.style.display = 'flex';
   } else {
     // ── TRAINING MODE: show immediate feedback ──
     if (isCorrect) {
@@ -1295,7 +1275,7 @@ function submitAnswer() {
 
   document.getElementById('btn-submit').style.display = 'none';
   document.getElementById('btn-next').style.display = 'inline-block';
-  document.getElementById('btn-skip-exam').style.display = 'none';
+  
   document.getElementById('btn-known').style.display = isExam ? 'none' : document.getElementById('btn-known').style.display;
   document.getElementById('btn-remove-wrong').style.display = isExam ? 'none' : document.getElementById('btn-remove-wrong').style.display;
 
@@ -1367,13 +1347,18 @@ function getSRStats() {
 }
 
 function clearSR() {
-  if (!confirm('Opravdu chceš smazat veškerý pokrok?\n\nTato akce je nevratná — přijdeš o všechny záznamy správných i špatných odpovědí.')) return;
+  document.getElementById('modal-reset').style.display = 'flex';
+}
+function hideResetConfirm() {
+  document.getElementById('modal-reset').style.display = 'none';
+}
+function doResetConfirmed() {
+  hideResetConfirm();
   try { localStorage.removeItem(SR_KEY); } catch {}
   state.wrongOnly = false;
   const wob = document.getElementById('btn-wrong-only');
   if (wob) wob.classList.remove('active');
   updateSRBadge();
-  alert('Pokrok byl resetován.');
 }
 function exportSR() {
   const data = loadSR();
@@ -1438,14 +1423,6 @@ function nextQuestion() {
   if (!state.answered) return;
   if (state.mode === 'realny' && state.examSections) {
     // Save answer result to section
-    const sec = state.examSections[state.examSection];
-    const q = state.currentQ;
-    if (q && !sec.answers[q.id]) {
-      const correctSet = new Set(q.spravne);
-      const isCorrect = selectedLetters.size === correctSet.size &&
-        [...selectedLetters].every(l => correctSet.has(l));
-      sec.answers[q.id] = { selected: [...selectedLetters], correct: isCorrect };
-    }
     advanceExamQuestion();
     return;
   }
@@ -1551,10 +1528,13 @@ function goHome() {
   clearInterval(state.timerInterval);
   state.timerInterval = null;
   document.getElementById('timer-text').textContent = '';
-  if (document.getElementById('spicker-overlay').classList.contains('open')) closeSectionPicker();
   state.wrongOnly = false;
+  state.bookmarksOnly = false;
   const _wb = document.getElementById('btn-wrong-only');
   if (_wb) _wb.classList.remove('active');
+  const _bb = document.getElementById('btn-bookmarks-only');
+  if (_bb) _bb.classList.remove('active');
+  setBookmarksOnlyFiltersDisabled(false);
   showScreen('screen-home');
   updateHomeBanner();
 }
@@ -1602,78 +1582,17 @@ function showScreen(id) {
     document.getElementById('exam-section-nav').classList.remove('visible');
     const dotsWrap = document.getElementById('exam-dots-wrap');
     if (dotsWrap) dotsWrap.classList.remove('visible');
+    const bmBtn = document.getElementById('btn-bookmark');
+    if (bmBtn) bmBtn.style.display = 'none';
   }
 }
 
 
 
 // ── CLIPBOARD SYNC ──
-async function copyProgress() {
-  const data = loadSR();
-  const json = JSON.stringify(data);
-  const btn  = document.getElementById('btn-copy');
-  const panel = document.getElementById('sync-panel');
-  try {
-    await navigator.clipboard.writeText(json);
-    const orig = btn.innerHTML;
-    btn.innerHTML = '✓ Zkopírováno!';
-    btn.classList.add('success');
-    panel.classList.add('visible');
-    setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('success'); }, 2500);
-  } catch {
-    // Fallback: textarea select
-    const ta = document.createElement('textarea');
-    ta.value = json;
-    ta.style.cssText = 'position:fixed;opacity:0';
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    btn.innerHTML = '✓ Zkopírováno!';
-    btn.classList.add('success');
-    panel.classList.add('visible');
-    setTimeout(() => { btn.innerHTML = '📋 Kopírovat pokrok do schránky'; btn.classList.remove('success'); }, 2500);
-  }
-}
-
-async function pasteProgress() {
-  const btn = document.getElementById('btn-paste');
-  try {
-    const text = await navigator.clipboard.readText();
-    applyImportedData(text, btn);
-  } catch {
-    // Fallback: prompt
-    const text = prompt('Vlož sem zkopírovaný pokrok (JSON text):');
-    if (text) applyImportedData(text, btn);
-  }
-}
-
-function applyImportedData(text, btn) {
-  try {
-    const data = JSON.parse(text);
-    if (typeof data !== 'object' || Array.isArray(data))
-      throw new Error('Neplatný formát');
-    const count = Object.keys(data).length;
-    if (!confirm('Načíst pokrok s ' + count + ' záznamy? Přepíše stávající data.')) return;
-    saveSR(data);
-    updateSRBadge();
-    updateHomeBanner();
-    const orig = btn.innerHTML;
-    btn.innerHTML = '✓ Pokrok načten (' + count + ' záznamů)';
-    btn.classList.add('success');
-    setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('success'); }, 3000);
-  } catch {
-    btn.innerHTML = '✗ Neplatná data';
-    btn.classList.add('danger');
-    setTimeout(() => { btn.innerHTML = '📥 Vložit pokrok ze schránky'; btn.classList.remove('danger'); }, 2500);
-  }
-}
 
 
 // ── REAL EXAM SECTION PICKER ──
-function closeSectionPicker() {
-  document.getElementById('spicker-overlay').classList.remove('open');
-}
 
 function buildRealExamSections() {
   const single = shuffle(ALL_QUESTIONS.filter(q => q.typ === 'Jedna správná odpověď')).slice(0, 54);
@@ -1692,7 +1611,6 @@ function buildRealExamSections() {
 }
 
 function startRealExam(startSection) {
-  closeSectionPicker();
 
   const { single, multi, caseSelected } = buildRealExamSections();
 
@@ -1740,7 +1658,7 @@ function updateExamSectionNav() {
     const skipped = sections[key].skipped.size;
     const remaining = total - answered;
     btn.classList.toggle('active', state.examSection === key);
-    stats.textContent = `${answered}/${total} · ⏭ ${skipped}`;
+    stats.textContent = `${answered}/${total}`;
   });
 }
 
@@ -1764,14 +1682,6 @@ function switchExamSection(key) {
   renderExamDots();
 }
 
-function skipExamQuestion() {
-  const sec = state.examSections[state.examSection];
-  const q = sec.questions[state.examQIdx];
-  if (q) sec.skipped.add(q.id);
-  // Advance to next unanswered in section
-  advanceExamQuestion();
-  updateExamSectionNav();
-}
 
 function advanceExamQuestion() {
   const sec = state.examSections[state.examSection];
@@ -1847,7 +1757,11 @@ function loadExamQuestion() {
     if (state.answered) {
       const saved = sec.answers[q.id];
       const wasSelected = saved && saved.selected && saved.selected.includes(letter);
-      if (wasSelected) btn.classList.add('selected');
+      if (wasSelected) {
+        btn.classList.add('confirmed');
+        const circle = btn.querySelector('.ans-letter');
+        if (circle) { circle.style.background = 'var(--muted)'; circle.style.color = '#fff'; }
+      }
       btn.disabled = true;
     } else {
       btn.onclick = () => selectAnswer(btn, letter);
@@ -1860,7 +1774,7 @@ function loadExamQuestion() {
   document.getElementById('btn-submit').disabled = true;
   document.getElementById('btn-submit').style.display = state.answered ? 'none' : 'inline-block';
   document.getElementById('btn-next').style.display = state.answered ? 'inline-block' : 'none';
-  document.getElementById('btn-skip-exam').style.display = state.answered ? 'none' : 'inline-block';
+  
   document.getElementById('btn-known').style.display = 'none';
   document.getElementById('btn-remove-wrong').style.display = 'none';
 
@@ -1914,6 +1828,12 @@ function setWrongOnlyFiltersDisabled(disabled) {
 function toggleWrongOnly(btn) {
   state.wrongOnly = !state.wrongOnly;
   btn.classList.toggle('active', state.wrongOnly);
+  if (state.wrongOnly && state.bookmarksOnly) {
+    state.bookmarksOnly = false;
+    const bb = document.getElementById('btn-bookmarks-only');
+    if (bb) bb.classList.remove('active');
+    setBookmarksOnlyFiltersDisabled(false);
+  }
   setWrongOnlyFiltersDisabled(state.wrongOnly);
   updateQueue();
 }
@@ -2138,11 +2058,122 @@ function recordTrainingAnswer(q, selected, correct) {
   else state.sessionReview.push({ q, selected: [...selected], correct });
 }
 
+// ── BOOKMARKS ──
+const BM_KEY = 'spot_bookmarks_v1';
+
+function loadBookmarks() {
+  try { return new Set(JSON.parse(localStorage.getItem(BM_KEY) || '[]')); } catch { return new Set(); }
+}
+function saveBookmarks(set) {
+  try { localStorage.setItem(BM_KEY, JSON.stringify([...set])); } catch {}
+}
+
+function toggleBookmark() {
+  const q = state.currentQ;
+  if (!q) return;
+  const bm = loadBookmarks();
+  if (bm.has(q.id)) { bm.delete(q.id); } else { bm.add(q.id); }
+  saveBookmarks(bm);
+  updateBookmarkBtn(q.id);
+  updateBookmarkBadge();
+}
+
+function updateBookmarkBtn(qId) {
+  const btn = document.getElementById('btn-bookmark');
+  if (!btn) return;
+  const bm = loadBookmarks();
+  const isBookmarked = bm.has(qId);
+  btn.classList.toggle('bookmarked', isBookmarked);
+  btn.title = isBookmarked ? 'Odebrat označení' : 'Označit jako nejisté';
+}
+
+function updateBookmarkBadge() {
+  const cnt = loadBookmarks().size;
+  const el = document.getElementById('cnt-bookmarks');
+  if (el) el.textContent = cnt;
+}
+
+function toggleBookmarksOnly(btn) {
+  state.bookmarksOnly = !state.bookmarksOnly;
+  btn.classList.toggle('active', state.bookmarksOnly);
+  // Disable other filters when bookmarksOnly active
+  setBookmarksOnlyFiltersDisabled(state.bookmarksOnly);
+  // Turn off wrongOnly if active
+  if (state.bookmarksOnly && state.wrongOnly) {
+    state.wrongOnly = false;
+    const wb = document.getElementById('btn-wrong-only');
+    if (wb) wb.classList.remove('active');
+    setWrongOnlyFiltersDisabled(false);
+  }
+  updateQueue();
+}
+
+function setBookmarksOnlyFiltersDisabled(disabled) {
+  const selectors = ['[data-typ]', '[data-ans]', '[data-cnt]', '#cat-select'];
+  selectors.forEach(sel => {
+    document.querySelectorAll(sel).forEach(el => {
+      if (disabled) { el.classList.add('disabled'); el.setAttribute('disabled', ''); }
+      else { el.classList.remove('disabled'); el.removeAttribute('disabled'); }
+    });
+  });
+  const sectionsToDim = ['section-typ', 'section-kat', 'section-ans', 'section-pocet-spravnych'];
+  sectionsToDim.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.opacity = disabled ? '0.35' : '';
+  });
+}
+
 // Init
 initCats();
 updateQueue();
+updateTrainingMax();
 updateSRBadge();
+updateBookmarkBadge();
 initTheme();
 </script>
+
+<!-- Reset confirmation modal -->
+<style>
+  #modal-reset {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,.6); backdrop-filter: blur(4px);
+    z-index: 9999; align-items: center; justify-content: center;
+  }
+  .modal-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 32px 28px 24px;
+    max-width: 360px; width: 90%; text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  }
+  .modal-icon { font-size: 36px; margin-bottom: 12px; }
+  .modal-title { font-family: 'DM Serif Display', serif; font-size: 20px; color: var(--text); margin-bottom: 8px; }
+  .modal-text { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 24px; }
+  .modal-btns { display: flex; gap: 10px; }
+  .modal-btn-no {
+    flex: 1; padding: 11px; border-radius: 10px;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); font-family: inherit; font-size: 14px; font-weight: 500;
+    cursor: pointer; transition: border-color .15s;
+  }
+  .modal-btn-no:hover { border-color: var(--accent); color: var(--accent); }
+  .modal-btn-yes {
+    flex: 1; padding: 11px; border-radius: 10px;
+    background: rgba(247,85,85,.15); border: 1px solid var(--red);
+    color: var(--red); font-family: inherit; font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: background .15s;
+  }
+  .modal-btn-yes:hover { background: rgba(247,85,85,.28); }
+</style>
+<div id="modal-reset">
+  <div class="modal-box">
+    <div class="modal-icon">&#9888;&#65039;</div>
+    <div class="modal-title">Resetovat pokrok?</div>
+    <div class="modal-text">Tato akce je nevratná — přijdeš o všechny záznamy správných i špatných odpovědí.</div>
+    <div class="modal-btns">
+      <button class="modal-btn-no" onclick="hideResetConfirm()">Ne, ponechat</button>
+      <button class="modal-btn-yes" onclick="doResetConfirmed()">Ano, smazat</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
