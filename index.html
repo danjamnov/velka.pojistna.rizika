@@ -607,18 +607,47 @@
 
     <div class="divider"></div>
 
+    <!-- Hledání -->
+    <div class="sidebar-section">
+      <div class="sidebar-label">Hledat</div>
+      <div style="position:relative;">
+        <input type="text" id="text-filter-input" placeholder="např. havarijní pojištění"
+          oninput="state.textFilter=this.value.trim(); updateQueue(); document.getElementById('text-filter-clear').style.display=this.value?'flex':'none';"
+          style="width:100%; box-sizing:border-box; padding:9px 32px 9px 12px; border-radius:8px;
+                 border:1px solid var(--border); background:var(--surface2); color:var(--text);
+                 font-family:inherit; font-size:13px; outline:none; transition:border-color .15s;"
+          onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+        <button id="text-filter-clear" onclick="document.getElementById('text-filter-input').value=''; state.textFilter=''; updateQueue(); this.style.display='none';"
+          style="display:none; position:absolute; right:8px; top:50%; transform:translateY(-50%);
+                 background:none; border:none; cursor:pointer; color:var(--muted); font-size:14px;
+                 line-height:1; padding:2px 4px; align-items:center; justify-content:center;">×</button>
+        <span id="cnt-text-filter" style="display:none;"></span>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
     <!-- Speciální -->
     <div class="sidebar-section">
       <div class="sidebar-label">Speciální</div>
       <div class="btn-group">
         <button class="filter-btn" id="btn-wrong-only" onclick="toggleWrongOnly(this)">
-          🔴 Jen špatné <span class="count" id="cnt-wrong-only">0</span>
+          🔴 Špatné <span class="count" id="cnt-wrong-only">0</span>
         </button>
         <button class="filter-btn" id="btn-bookmarks-only" onclick="toggleBookmarksOnly(this)">
           ❓ Nejisté <span class="count" id="cnt-bookmarks">0</span>
         </button>
         <button class="filter-btn" id="btn-known-only" onclick="toggleKnownOnly(this)">
           ✅ Umím <span class="count" id="cnt-known-only">0</span>
+        </button>
+        <button class="filter-btn" id="btn-anone-only" onclick="toggleAnoNe(this)">
+          🔀 Ano / Ne <span class="count" id="cnt-anone">95</span>
+        </button>
+        <button class="filter-btn" id="btn-castky-only" onclick="toggleCastky(this)">
+          💰 Částky <span class="count" id="cnt-castky">51</span>
+        </button>
+        <button class="filter-btn" id="btn-pravni-only" onclick="togglePravni(this)">
+          📜 Právní předpisy <span class="count" id="cnt-pravni">25</span>
         </button>
         <button class="filter-btn" onclick="showStats()">
           📊 Statistiky pokroku
@@ -3313,7 +3342,11 @@ let state = {
   wrongOnly: false,
   bookmarksOnly: false,
   knownOnly: false,
-  cntFilter: new Set(['vse'])
+  cntFilter: new Set(['vse']),
+  anoNeOnly: false,
+  castkyOnly: false,
+  pravniOnly: false,
+  textFilter: ''
 };
 
 // Init categories
@@ -3381,6 +3414,41 @@ function getFilteredQuestions() {
       return match;
     });
   }
+  if (state.textFilter) {
+    const needles = state.textFilter.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+    const needleRegs = needles.map(n => {
+        const hasDigit = /\d/.test(n);
+        if (hasDigit) {
+          return { exact: true, re: new RegExp('(?<![\\d])' + n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\d])', 'i') };
+        } else {
+          const words = n.split(/\s+/).filter(Boolean);
+          return { exact: false, words };
+        }
+      });
+      function matchNeedle(reg, haystack) {
+        if (reg.exact) return reg.re.test(haystack);
+        return reg.words.every(w => haystack.toLowerCase().includes(w));
+      }
+    qs = qs.filter(q => {
+      const haystackFull = q.otazka + ' ' + Object.values(q.odpovedi).map(a => a.text).join(' ');
+      const haystackAnswers = Object.values(q.odpovedi).map(a => a.text).join(' ');
+      return needleRegs.some(r => matchNeedle(r, r.exact ? haystackAnswers : haystackFull));
+    });
+  }
+  if (state.anoNeOnly || state.castkyOnly || state.pravniOnly) {
+    qs = qs.filter(q => {
+      const anoNe = state.anoNeOnly && q.spravne.some(k => /^(Ano|Ne)[.\s,]/i.test((q.odpovedi[k] || {}).text || ''));
+      const castka = state.castkyOnly && q.spravne.some(k => {
+        const t = (q.odpovedi[k] || {}).text || '';
+        return /^\d/.test(t) && /(Kč|EUR|€|tis\.|mil\.)/.test(t);
+      });
+      const pravni = state.pravniOnly && q.spravne.some(k => {
+        const t = (q.odpovedi[k] || {}).text || '';
+        return /^(zákon|vyhláška|nařízení|směrnice|úmluva|budapešťská|varšavská|montrealská)/i.test(t) || /č\.\s*\d+\/\d+\s+Sb\./.test(t);
+      });
+      return anoNe || castka || pravni;
+    });
+  }
   return qs;
 }
 
@@ -3408,6 +3476,40 @@ function updateQueue() {
     });
   }
   document.getElementById('start-btn').disabled = qs.length === 0;
+  const _tfEl = document.getElementById('cnt-text-filter');
+  if (_tfEl) {
+    if (state.textFilter) {
+      const needles = state.textFilter.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+      const needleRegs = needles.map(n => {
+        const hasDigit = /\d/.test(n);
+        if (hasDigit) {
+          return { exact: true, re: new RegExp('(?<![\\d])' + n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\d])', 'i') };
+        } else {
+          const words = n.split(/\s+/).filter(Boolean);
+          return { exact: false, words };
+        }
+      });
+      function matchNeedle(reg, haystack) {
+        if (reg.exact) return reg.re.test(haystack);
+        return reg.words.every(w => haystack.toLowerCase().includes(w));
+      }
+      const tfCount = ALL_QUESTIONS.filter(q => {
+        const haystackFull = q.otazka + ' ' + Object.values(q.odpovedi).map(a => a.text).join(' ');
+        const haystackAnswers = Object.values(q.odpovedi).map(a => a.text).join(' ');
+        return needleRegs.some(r => matchNeedle(r, r.exact ? haystackAnswers : haystackFull));
+      }).length;
+      _tfEl.textContent = tfCount + ' shod';
+    } else { _tfEl.textContent = ''; }
+  }
+  const _pravni = document.getElementById('cnt-pravni');
+  if (_pravni) _pravni.textContent = ALL_QUESTIONS.filter(q => q.spravne.some(k => {
+    const t = (q.odpovedi[k]||{}).text||'';
+    return /^(zákon|vyhláška|nařízení|směrnice|úmluva|budapešťská|varšavská|montrealská)/i.test(t) || /č\.\s*\d+\/\d+\s+Sb\./.test(t);
+  })).length;
+  const _castky = document.getElementById('cnt-castky');
+  if (_castky) _castky.textContent = ALL_QUESTIONS.filter(q => q.spravne.some(k => { const t = (q.odpovedi[k]||{}).text||''; return /^\d/.test(t) && /(Kč|EUR|€|tis\.|mil\.)/.test(t); })).length;
+  const _anoNeCnt = document.getElementById('cnt-anone');
+  if (_anoNeCnt) _anoNeCnt.textContent = ALL_QUESTIONS.filter(q => q.spravne.some(k => /^(Ano|Ne)[.\s,]/i.test((q.odpovedi[k] || {}).text || ''))).length;
   updateBookmarkBadge();
   updateTrainingMax();
 }
@@ -4656,6 +4758,24 @@ function toggleKnownOnly(btn) {
   const anySpecial = state.wrongOnly || state.bookmarksOnly || state.knownOnly;
   setWrongOnlyFiltersDisabled(anySpecial);
   setBookmarksOnlyFiltersDisabled(anySpecial);
+  updateQueue();
+}
+
+function toggleAnoNe(btn) {
+  state.anoNeOnly = !state.anoNeOnly;
+  btn.classList.toggle('active', state.anoNeOnly);
+  updateQueue();
+}
+
+function togglePravni(btn) {
+  state.pravniOnly = !state.pravniOnly;
+  btn.classList.toggle('active', state.pravniOnly);
+  updateQueue();
+}
+
+function toggleCastky(btn) {
+  state.castkyOnly = !state.castkyOnly;
+  btn.classList.toggle('active', state.castkyOnly);
   updateQueue();
 }
 
