@@ -199,8 +199,8 @@
     padding: 8px 16px; border-radius: 8px; font-family: inherit; font-size: 12px;
     font-weight: 600; cursor: pointer; border: 1px solid var(--green);
     background: transparent; color: var(--green); transition: all .15s;
-    margin-left: auto;
   }
+  .q-known-group { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .known-btn:hover { background: rgba(62,207,142,.1); }
 
   /* RESULT */
@@ -483,6 +483,34 @@
     font-weight: 600; cursor: pointer; transition: all .15s;
   }
   .btn-review-back:hover { border-color: var(--accent); color: var(--accent); }
+
+  .mnemonic-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 14px;
+    padding: 7px 14px;
+    background: transparent;
+    border: 1.5px solid var(--accent);
+    border-radius: 8px;
+    color: var(--accent);
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.18s, color 0.18s;
+  }
+  .mnemonic-btn:hover { background: var(--accent); color: #fff; }
+  .mnemonic-box {
+    display: none;
+    margin-top: 10px;
+    padding: 12px 15px;
+    background: rgba(99,102,241,0.10);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--text);
+  }
+  .mnemonic-box.visible { display: block; }
 </style>
 </head>
 <body>
@@ -737,9 +765,11 @@
       <div class="q-actions">
         <button class="btn-submit" id="btn-submit" onclick="submitAnswer()" disabled>Potvrdit</button>
         <button class="btn-next" id="btn-next" onclick="nextQuestion()" style="display:none">Další →</button>
-        <button class="known-btn" id="btn-known" onclick="markKnown()" style="display:none">✓ Umím to</button>
-        <button class="known-btn" id="btn-nejiste" onclick="toggleBookmark()" style="display:none">❓ Nejisté</button>
-        <button class="known-btn" id="btn-remove-wrong" onclick="doRemoveFromWrong()" style="display:none;border-color:var(--red);color:var(--red)">✕ Odebrat ze špatných</button>
+        <div class="q-known-group" id="q-known-group">
+          <button class="known-btn" id="btn-known" onclick="markKnown()" style="display:none">✓ Umím to</button>
+          <button class="known-btn" id="btn-nejiste" onclick="toggleBookmark()" style="display:none">❓ Nejisté</button>
+          <button class="known-btn" id="btn-remove-wrong" onclick="doRemoveFromWrong()" style="display:none;border-color:var(--red);color:var(--red)">✕ Odebrat ze špatných</button>
+        </div>
         <div class="repeat-flag" id="repeat-flag" style="display:none">
           <span class="repeat-badge">🔁 Opakování</span>
         </div>
@@ -3751,10 +3781,10 @@ function submitAnswer() {
 
     const _srRec = loadSR()[state.currentQ.id];
     const _isInWrong = _srRec && _srRec.type === 'wrong';
-    const showKnown = !isCorrect || _isInWrong;
+    const showKnown = isCorrect && !_isInWrong;
     const _knownBtn = document.getElementById('btn-known');
     _knownBtn.style.display = showKnown ? 'inline-block' : 'none';
-    _knownBtn.textContent = '✓ Umím to – odložit na týden';
+    _knownBtn.textContent = '✓ Umím';
     _knownBtn.style.color = 'var(--muted)';
     _knownBtn.style.fontSize = '12px';
     const _removeBtn = document.getElementById('btn-remove-wrong');
