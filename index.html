@@ -4,6 +4,19 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>V. Pojištění velkých pojistných rizik</title>
+<script id="embedded-data-slot">const EMBEDDED_DATA = null;</script>
+<script>
+// Load embedded data into localStorage before page initializes
+(function() {
+  if (typeof EMBEDDED_DATA === 'object' && EMBEDDED_DATA !== null) {
+    try {
+      Object.entries(EMBEDDED_DATA).forEach(([k, v]) => {
+        try { localStorage.setItem(k, v); } catch(e) {}
+      });
+    } catch(e) {}
+  }
+})();
+</script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -528,6 +541,7 @@
   </div>
   <button class="theme-toggle" id="home-btn" onclick="showScreen('screen-home')" title="Domů">🏠</button>
   <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Světlý/tmavý režim">☀️</button>
+  <button class="theme-toggle" id="btn-save-download" onclick="saveAndDownload()" title="Uložit postup a stáhnout soubor">💾</button>
 </div>
 
 <div class="layout">
@@ -690,6 +704,16 @@
       <div class="home-hero">
         <h2>Příprava na zkoušku</h2>
         <p>1 214 otázek z oficiálního souboru SPOT rozdělených do tří typů — jedna správná, více správných a případové studie. Procvičuj vlastním tempem v tréninku nebo si vyzkoušej ostrý test v podmínkách reálné zkoušky.</p>
+      </div>
+
+      <div id="continue-banner" onclick="continueSession()" style="display:none;cursor:pointer;background:var(--surface2);border:1px solid var(--accent);border-radius:14px;padding:16px 20px;margin-bottom:12px;display:none;align-items:center;gap:16px">
+        <div style="font-size:28px">▶️</div>
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:700;color:var(--text)">Pokračovat v tréninku</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px" id="continue-banner-sub">Uložená relace</div>
+        </div>
+        <div style="font-size:13px;color:var(--accent);font-weight:600">Pokračovat →</div>
+        <button onclick="event.stopPropagation();clearSavedSession()" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:4px" title="Smazat">✕</button>
       </div>
 
       <div id="wrong-banner" class="wrong-banner" onclick="startWrongOnly()" style="display:none">
@@ -3624,11 +3648,38 @@ function startSession() {
     return;
   } else {
     // Training: N random questions (SR priority: wrong first, then rest)
+    // Case study questions always appear as complete groups (all 5 questions together)
     const n = Math.max(1, parseInt(document.getElementById('training-count')?.value) || 50);
     const srData = loadSR();
-    const wrong = qs.filter(q => srData[q.id] && srData[q.id].type === 'wrong');
-    const normal = qs.filter(q => !(srData[q.id] && srData[q.id].type === 'wrong'));
-    const combined = [...shuffle(wrong), ...shuffle(normal)];
+
+    // Split into case study and other questions
+    const caseQs  = qs.filter(q => q.typ === 'Případová studie');
+    const otherQs = qs.filter(q => q.typ !== 'Případová studie');
+
+    // Group case questions by zadani (shared case text)
+    const caseGroupMap = {};
+    caseQs.forEach(q => {
+      const key = q.zadani || q.id;
+      if (!caseGroupMap[key]) caseGroupMap[key] = [];
+      caseGroupMap[key].push(q);
+    });
+    const caseGroups = Object.values(caseGroupMap);
+
+    // Split groups: wrong (any question in group marked wrong) vs normal
+    const caseWrongGroups  = shuffle(caseGroups.filter(g => g.some(q => srData[q.id] && srData[q.id].type === 'wrong')));
+    const caseNormalGroups = shuffle(caseGroups.filter(g => !g.some(q => srData[q.id] && srData[q.id].type === 'wrong')));
+
+    // Other (non-case) questions split by SR
+    const otherWrong  = shuffle(otherQs.filter(q => srData[q.id] && srData[q.id].type === 'wrong'));
+    const otherNormal = shuffle(otherQs.filter(q => !(srData[q.id] && srData[q.id].type === 'wrong')));
+
+    // Combined: wrong non-case → wrong case groups → normal non-case → normal case groups
+    const combined = [
+      ...otherWrong,
+      ...caseWrongGroups.flat(),
+      ...otherNormal,
+      ...caseNormalGroups.flat()
+    ];
     state.queue = combined.slice(0, n);
   }
 
@@ -3672,9 +3723,12 @@ function toggleMnemonic() {
 
 
 function loadQuestion() {
+  // Auto-save current position
+  if (state.mode === 'trening') saveSession();
+
   // Determine current question (from queue or repeat)
   let q, isRepeat = false;
-  
+
   if (state.sessionIdx < state.queue.length) {
     q = state.queue[state.sessionIdx];
   } else if (state.repeatQueue.length > 0) {
@@ -3883,14 +3937,15 @@ function submitAnswer() {
 
     const _srRec = loadSR()[state.currentQ.id];
     const _isInWrong = _srRec && _srRec.type === 'wrong';
-    const showKnown = isCorrect && !_isInWrong;
+    const showKnown = isCorrect; // show "Umím" on any correct answer, incl. wrong-queue questions
     const _knownBtn = document.getElementById('btn-known');
     _knownBtn.style.display = showKnown ? 'inline-block' : 'none';
     _knownBtn.textContent = '✓ Umím';
     _knownBtn.style.color = 'var(--muted)';
     _knownBtn.style.fontSize = '12px';
     const _removeBtn = document.getElementById('btn-remove-wrong');
-    if (_removeBtn) _removeBtn.style.display = _isInWrong ? 'inline-block' : 'none';
+    // hide "Odebrat ze špatných" when correct — clicking "Umím" removes from wrong queue anyway
+    if (_removeBtn) _removeBtn.style.display = (_isInWrong && !isCorrect) ? 'inline-block' : 'none';
   }
 
   document.getElementById('btn-submit').style.display = 'none';
@@ -3944,14 +3999,14 @@ function markKnownUntil(id) {
 }
 
 // Is question due now?
-// known → hidden until due date (7 days)
+// known → permanently hidden (never return to queue)
 // wrong → ALWAYS shown (never hidden, they're priority)
 // no record → shown
 function isQuestionDue(id) {
   const data = loadSR();
   if (!data[id]) return true;
   if (data[id].type === 'wrong') return true;  // wrong always due
-  return Date.now() > data[id].due;            // known: hidden until expiry
+  return false;                                 // known: permanently hidden
 }
 
 function getSRStats() {
@@ -4053,6 +4108,7 @@ function nextQuestion() {
 function showSummary() {
   clearInterval(state.timerInterval);
   document.getElementById('timer-text').textContent = '';
+  clearSavedSession(); // training complete, remove saved session
   showScreen('screen-summary');
 
   if (state.mode === 'realny') {
@@ -4794,6 +4850,110 @@ function setBookmarksOnlyFiltersDisabled(disabled) {
   });
 }
 
+// ── SESSION SAVE / RESTORE ──
+const SESSION_KEY = 'spot_session_v1';
+
+function saveSession() {
+  if (!state.queue || !state.queue.length) return;
+  try {
+    const data = {
+      mode: state.mode,
+      queueIds: state.queue.map(q => q.id),
+      sessionIdx: state.sessionIdx,
+      totalAnswered: state.totalAnswered,
+      totalCorrect: state.totalCorrect,
+      totalWrong: state.totalWrong,
+      totalPoints: state.totalPoints,
+      casePoints: state.casePoints,
+      theoryPoints: state.theoryPoints,
+      knownSet: [...state.knownSet],
+      savedAt: Date.now()
+    };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(data));
+  } catch(e) {}
+}
+
+function loadSavedSession() {
+  try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch { return null; }
+}
+
+function clearSavedSession() {
+  try { localStorage.removeItem(SESSION_KEY); } catch {}
+  const b = document.getElementById('continue-banner');
+  if (b) b.style.display = 'none';
+}
+
+function continueSession() {
+  const saved = loadSavedSession();
+  if (!saved) return;
+  const qMap = {};
+  ALL_QUESTIONS.forEach(q => qMap[q.id] = q);
+  const queue = (saved.queueIds || []).map(id => qMap[id]).filter(Boolean);
+  if (!queue.length) { clearSavedSession(); return; }
+
+  state.mode = saved.mode || 'trening';
+  state.queue = queue;
+  state.sessionIdx = Math.min(saved.sessionIdx || 0, queue.length - 1);
+  state.totalAnswered = saved.totalAnswered || 0;
+  state.totalCorrect  = saved.totalCorrect  || 0;
+  state.totalWrong    = saved.totalWrong    || 0;
+  state.totalPoints   = saved.totalPoints   || 0;
+  state.casePoints    = saved.casePoints    || 0;
+  state.theoryPoints  = saved.theoryPoints  || 0;
+  state.knownSet      = new Set(saved.knownSet || []);
+  state.repeatQueue   = [];
+  state.answered      = false;
+  state.sessionReview = [];
+
+  showScreen('screen-question');
+  loadQuestion();
+}
+
+function checkContinueBanner() {
+  const saved = loadSavedSession();
+  const banner = document.getElementById('continue-banner');
+  if (!banner) return;
+  if (!saved || !saved.queueIds || !saved.queueIds.length) { banner.style.display = 'none'; return; }
+  const remaining = saved.queueIds.length - (saved.sessionIdx || 0);
+  const d = new Date(saved.savedAt);
+  const timeStr = d.toLocaleDateString('cs-CZ') + ' ' + d.toLocaleTimeString('cs-CZ', {hour:'2-digit',minute:'2-digit'});
+  const sub = document.getElementById('continue-banner-sub');
+  if (sub) sub.textContent = `${remaining} otázek zbývá · uloženo ${timeStr}`;
+  banner.style.display = 'flex';
+}
+
+// ── SAVE & DOWNLOAD ──
+function saveAndDownload() {
+  saveSession();
+  // Collect all relevant localStorage keys
+  const keys = [SESSION_KEY, SR_KEY, BM_KEY, 'spot_theme'];
+  const data = {};
+  keys.forEach(k => {
+    const v = localStorage.getItem(k);
+    if (v !== null) data[k] = v;
+  });
+
+  // Serialize data safely — escape </script> so it can't break the HTML script tag
+  const safeJson = JSON.stringify(data).replace(/<\/script/gi, '<\\/script');
+
+  // Get current HTML and replace the embedded-data-slot script
+  const html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+  const slotStart = html.indexOf('<script id="embedded-data-slot">');
+  const slotEnd   = html.indexOf('</script>', slotStart) + '</script>'.length;
+  if (slotStart === -1) { alert('Chyba: nelze najít slot pro data.'); return; }
+
+  const newSlot = `<script id="embedded-data-slot">const EMBEDDED_DATA = ${safeJson};<\/script>`;
+  const newHtml = html.slice(0, slotStart) + newSlot + html.slice(slotEnd);
+
+  const blob = new Blob([newHtml], { type: 'text/html' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = document.title.replace(/[^a-z0-9áčďéěíňóřšťúůýž ]/gi, '') + ' - záloha.html';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // Init
 initCats();
 updateQueue();
@@ -4801,6 +4961,7 @@ updateTrainingMax();
 updateSRBadge();
 updateBookmarkBadge();
 initTheme();
+checkContinueBanner();
 </script>
 
 <!-- Reset confirmation modal -->
