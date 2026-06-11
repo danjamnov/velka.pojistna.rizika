@@ -4925,7 +4925,6 @@ function checkContinueBanner() {
 // ── SAVE & DOWNLOAD ──
 function saveAndDownload() {
   saveSession();
-  // Collect all relevant localStorage keys
   const keys = [SESSION_KEY, SR_KEY, BM_KEY, 'spot_theme'];
   const data = {};
   keys.forEach(k => {
@@ -4933,16 +4932,17 @@ function saveAndDownload() {
     if (v !== null) data[k] = v;
   });
 
-  // Serialize data safely — escape </script> so it can't break the HTML script tag
-  const safeJson = JSON.stringify(data).replace(/<\/script/gi, '<\\/script');
+  const CLOSE = '<' + '/script';
+  const safeJson = JSON.stringify(data).replace(new RegExp(CLOSE, 'gi'), '<\\' + '/script');
 
-  // Get current HTML and replace the embedded-data-slot script
   const html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
-  const slotStart = html.indexOf('<script id="embedded-data-slot">');
-  const slotEnd   = html.indexOf('</script>', slotStart) + '</script>'.length;
+  const slotOpen  = '<script id="embedded-data-slot">';
+  const slotClose = CLOSE + '>';
+  const slotStart = html.indexOf(slotOpen);
+  const slotEnd   = html.indexOf(slotClose, slotStart) + slotClose.length;
   if (slotStart === -1) { alert('Chyba: nelze najít slot pro data.'); return; }
 
-  const newSlot = `<script id="embedded-data-slot">const EMBEDDED_DATA = ${safeJson};<\/script>`;
+  const newSlot = slotOpen + 'const EMBEDDED_DATA = ' + safeJson + ';' + CLOSE + '>';
   const newHtml = html.slice(0, slotStart) + newSlot + html.slice(slotEnd);
 
   const blob = new Blob([newHtml], { type: 'text/html' });
