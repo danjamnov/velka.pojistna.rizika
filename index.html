@@ -3618,6 +3618,11 @@ function getFilteredQuestions() {
       return anoNe || castka || pravni;
     });
   }
+  // Exclude known questions if toggle is OFF
+  if (state.excludeKnown) {
+    const _srEx = loadSR();
+    qs = qs.filter(q => !(_srEx[q.id] && _srEx[q.id].type === 'known'));
+  }
   return qs;
 }
 
