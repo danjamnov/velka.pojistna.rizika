@@ -4169,10 +4169,7 @@ function importSR() {
           else localStorage.removeItem(SESSION_KEY);
           const srCount = Object.keys(raw.sr || {}).length;
           const bmCount = (raw.bookmarks || []).length;
-          alert('Import úspěšný!
-Pokrok: ' + srCount + ' záznamů
-Nejisté: ' + bmCount + ' otázek' + (raw.session ? '
-Rozehraná session: obnovena' : ''));
+          alert('Import úspěšný! Pokrok: ' + srCount + ' záznamů, Nejisté: ' + bmCount + ' otázek' + (raw.session ? ', Session: obnovena' : ''));
         } else {
           // Legacy: plain SR object
           saveSR(raw);
