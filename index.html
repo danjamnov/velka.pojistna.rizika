@@ -654,6 +654,9 @@
         <button class="filter-btn" id="btn-known-only" onclick="toggleKnownOnly(this)">
           ✅ Umím <span class="count" id="cnt-known-only">0</span>
         </button>
+        <button class="filter-btn" id="btn-exclude-known" onclick="toggleExcludeKnown(this)">
+          🚫 Vynechat Umím <span class="count" id="cnt-exclude-known">0</span>
+        </button>
         <button class="filter-btn" id="btn-anone-only" onclick="toggleAnoNe(this)">
           🔀 Ano / Ne <span class="count" id="cnt-anone">95</span>
         </button>
@@ -3370,7 +3373,8 @@ let state = {
   anoNeOnly: false,
   castkyOnly: false,
   pravniOnly: false,
-  textFilter: ''
+  textFilter: '',
+  excludeKnown: false
 };
 
 // Init categories
@@ -3388,6 +3392,70 @@ function initCats() {
     opt.textContent = stripCatNum(c);
     sel.appendChild(opt);
   });
+}
+
+
+// ── FILTER PREDICATES & POOL HELPERS ──
+function _isAnoNe(q) { return q.spravne.some(k => /^(Ano|Ne)[.\s,]/i.test((q.odpovedi[k]||{}).text||'')); }
+function _isCastka(q) { return q.spravne.some(k => { const t=(q.odpovedi[k]||{}).text||''; return /^\d/.test(t)&&/(Kč|EUR|€|tis\.|mil\.)/.test(t); }); }
+function _isPravni(q) { return q.spravne.some(k => { const t=(q.odpovedi[k]||{}).text||''; return /^(zákon|vyhláška|nařízení|směrnice|úmluva|budapešťská|varšavská|montrealská)/i.test(t)||/č\.\s*\d+\/\d+\s+Sb\./.test(t); }); }
+
+function _applyAnsTextFilter(qs) {
+  if (!state.ansFilter.has('vse')) {
+    qs = qs.filter(q => {
+      if (!q.spravne.length) return false;
+      const allLens = Object.values(q.odpovedi).map(a => a.text.length);
+      const correctLens = q.spravne.map(k => q.odpovedi[k]?.text.length || 0);
+      const allMin = Math.min(...allLens), allMax = Math.max(...allLens);
+      const isShort = correctLens.some(l => l === allMin) && (allLens.filter(l => l > allMin).length === 0 || Math.min(...allLens.filter(l => l > allMin)) - allMin >= 3);
+      const isLong = correctLens.some(l => l === allMax) && (allLens.filter(l => l < allMax).length === 0 || allMax - Math.max(...allLens.filter(l => l < allMax)) >= 3);
+      const isSame = !isShort && !isLong;
+      return (state.ansFilter.has('kratka') && isShort) || (state.ansFilter.has('dlouha') && isLong) || (state.ansFilter.has('stejne') && isSame);
+    });
+  }
+  if (state.textFilter) {
+    const needles = state.textFilter.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+    const needleRegs = needles.map(n => {
+      const hasDigit = /\d/.test(n);
+      if (hasDigit) return { exact: true, re: new RegExp('(?<![\\d])' + n.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '(?![\\d])','i') };
+      return { exact: false, words: n.split(/\s+/).filter(Boolean) };
+    });
+    function _mn(reg, h) { return reg.exact ? reg.re.test(h) : reg.words.every(w => h.toLowerCase().includes(w)); }
+    qs = qs.filter(q => {
+      const full = q.otazka + ' ' + Object.values(q.odpovedi).map(a => a.text).join(' ');
+      const ans = Object.values(q.odpovedi).map(a => a.text).join(' ');
+      return needleRegs.some(r => _mn(r, r.exact ? ans : full));
+    });
+  }
+  return qs;
+}
+
+// Pool = typ + cntFilter + kat + ansFilter + textFilter (no special toggles)
+// Used to count how many castky/anone/pravni questions are available
+function _getBasePool() {
+  let qs = ALL_QUESTIONS;
+  // Exclude known questions if requested (not applicable in knownOnly mode)
+  if (state.excludeKnown) {
+    const _srEx = loadSR();
+    qs = qs.filter(q => !(_srEx[q.id] && _srEx[q.id].type === 'known'));
+  }
+  if (state.typ !== 'vse') qs = qs.filter(q => q.typ === state.typ);
+  if (state.typ === 'Více správných odpovědí' && !state.cntFilter.has('vse'))
+    qs = qs.filter(q => state.cntFilter.has(String(q.spravne.length)));
+  if (state.kat !== 'vse') qs = qs.filter(q => q.kategorie === state.kat);
+  return _applyAnsTextFilter(qs);
+}
+
+// Pool = kat + ansFilter + textFilter + special toggles (no typ filter)
+// Used to count how many questions of each typ are available
+function _getPoolWithoutTyp() {
+  let qs = ALL_QUESTIONS;
+  if (state.kat !== 'vse') qs = qs.filter(q => q.kategorie === state.kat);
+  qs = _applyAnsTextFilter(qs);
+  if (state.anoNeOnly || state.castkyOnly || state.pravniOnly) {
+    qs = qs.filter(q => (state.anoNeOnly && _isAnoNe(q)) || (state.castkyOnly && _isCastka(q)) || (state.pravniOnly && _isPravni(q)));
+  }
+  return qs;
 }
 
 function getFilteredQuestions() {
@@ -3490,16 +3558,33 @@ function updateQueue() {
   state.kat = document.getElementById('cat-select').value;
   const qs = getFilteredQuestions();
   document.getElementById('q-ready').textContent = qs.length;
-  // Update cnt counts (based on multi questions in current kat/typ=multi)
+  document.getElementById('start-btn').disabled = qs.length === 0;
+
+  // Compute pools for dynamic counts (only when not in wrong/bookmarks/known override mode)
+  const _specialMode = state.bookmarksOnly || state.wrongOnly || state.knownOnly;
+  const _base = _specialMode ? qs : _getBasePool();
+  const _noTyp = _specialMode ? qs : _getPoolWithoutTyp();
+
+  // Typ counts — reflect current kat/ans/text/special-toggle filters
+  const _cntVse = document.getElementById('cnt-vse');
+  if (_cntVse) _cntVse.textContent = _noTyp.length;
+  const _cnt1 = document.getElementById('cnt-1');
+  if (_cnt1) _cnt1.textContent = _noTyp.filter(q => q.typ === 'Jedna správná odpověď').length;
+  const _cntMulti = document.getElementById('cnt-multi');
+  if (_cntMulti) _cntMulti.textContent = _noTyp.filter(q => q.typ === 'Více správných odpovědí').length;
+  const _cntCase = document.getElementById('cnt-case');
+  if (_cntCase) _cntCase.textContent = _noTyp.filter(q => q.typ === 'Případová studie').length;
+
+  // Multi-correct counts — reflect current typ/kat/ans/text filters
   if (state.typ === 'Více správných odpovědí' || state.typ === 'vse') {
-    let multiQs = ALL_QUESTIONS.filter(q => q.typ === 'Více správných odpovědí');
-    if (state.kat !== 'vse') multiQs = multiQs.filter(q => q.kategorie === state.kat);
+    const multiBase = _base.filter(q => q.typ === 'Více správných odpovědí');
     [1,2,3,4].forEach(n => {
       const el = document.getElementById('cnt-' + n + 'spravne');
-      if (el) el.textContent = multiQs.filter(q => q.spravne.length === n).length;
+      if (el) el.textContent = multiBase.filter(q => q.spravne.length === n).length;
     });
   }
-  document.getElementById('start-btn').disabled = qs.length === 0;
+
+  // Text filter result count
   const _tfEl = document.getElementById('cnt-text-filter');
   if (_tfEl) {
     if (state.textFilter) {
@@ -3525,15 +3610,33 @@ function updateQueue() {
       _tfEl.textContent = tfCount + ' shod';
     } else { _tfEl.textContent = ''; }
   }
+
+  // Special toggle counts — reflect current typ/kat/ans/text filters (base pool)
   const _pravni = document.getElementById('cnt-pravni');
-  if (_pravni) _pravni.textContent = ALL_QUESTIONS.filter(q => q.spravne.some(k => {
-    const t = (q.odpovedi[k]||{}).text||'';
-    return /^(zákon|vyhláška|nařízení|směrnice|úmluva|budapešťská|varšavská|montrealská)/i.test(t) || /č\.\s*\d+\/\d+\s+Sb\./.test(t);
-  })).length;
+  if (_pravni) _pravni.textContent = _base.filter(_isPravni).length;
   const _castky = document.getElementById('cnt-castky');
-  if (_castky) _castky.textContent = ALL_QUESTIONS.filter(q => q.spravne.some(k => { const t = (q.odpovedi[k]||{}).text||''; return /^\d/.test(t) && /(Kč|EUR|€|tis\.|mil\.)/.test(t); })).length;
+  if (_castky) _castky.textContent = _base.filter(_isCastka).length;
   const _anoNeCnt = document.getElementById('cnt-anone');
-  if (_anoNeCnt) _anoNeCnt.textContent = ALL_QUESTIONS.filter(q => q.spravne.some(k => /^(Ano|Ne)[.\s,]/i.test((q.odpovedi[k] || {}).text || ''))).length;
+  if (_anoNeCnt) _anoNeCnt.textContent = _base.filter(_isAnoNe).length;
+
+  // Exclude-known count: show how many known questions are in current base pool
+  const _exKnownEl = document.getElementById('cnt-exclude-known');
+  if (_exKnownEl) {
+    const _srEx = loadSR();
+    _exKnownEl.textContent = _base.filter(q => _srEx[q.id] && _srEx[q.id].type === 'known').length;
+  }
+  // Disable "Vynechat Umím" when "Umím" (knownOnly) is active
+  const _btnExKnown = document.getElementById('btn-exclude-known');
+  if (_btnExKnown) {
+    if (state.knownOnly) {
+      _btnExKnown.classList.add('disabled');
+      _btnExKnown.setAttribute('disabled', '');
+    } else {
+      _btnExKnown.classList.remove('disabled');
+      _btnExKnown.removeAttribute('disabled');
+    }
+  }
+
   updateBookmarkBadge();
   updateTrainingMax();
 }
@@ -4084,7 +4187,7 @@ function markKnown() {
   document.getElementById('btn-known').style.display = 'none';
   const msgEl = document.getElementById('result-msg');
   if (msgEl.innerHTML) {
-    msgEl.innerHTML += ' <span style="color:var(--green)">✓ Odloženo na týden.</span>';
+    msgEl.innerHTML += ' <span style="color:var(--green)">✓ Označeno jako umím.</span>';
   }
   updateSRBadge();
   // If used before answering (skip), advance
@@ -4809,11 +4912,25 @@ function toggleBookmarksOnly(btn) {
 }
 
 function toggleKnownOnly(btn) {
+  // If turning on knownOnly, disable excludeKnown (incompatible)
+  if (!state.knownOnly && state.excludeKnown) {
+    state.excludeKnown = false;
+    const exBtn = document.getElementById('btn-exclude-known');
+    if (exBtn) exBtn.classList.remove('active');
+  }
   state.knownOnly = !state.knownOnly;
   btn.classList.toggle('active', state.knownOnly);
   const anySpecial = state.wrongOnly || state.bookmarksOnly || state.knownOnly;
   setWrongOnlyFiltersDisabled(anySpecial);
   setBookmarksOnlyFiltersDisabled(anySpecial);
+  updateQueue();
+}
+
+function toggleExcludeKnown(btn) {
+  // Cannot combine with knownOnly (which shows ONLY known)
+  if (state.knownOnly) return;
+  state.excludeKnown = !state.excludeKnown;
+  btn.classList.toggle('active', state.excludeKnown);
   updateQueue();
 }
 
