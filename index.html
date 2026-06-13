@@ -215,6 +215,73 @@
   }
   .q-known-group { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .known-btn:hover { background: rgba(62,207,142,.1); }
+  /* Known include toggle row */
+  .known-include-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 10px 4px 6px;
+    gap: 8px;
+    opacity: 1;
+    transition: opacity .2s;
+  }
+  .known-include-row.disabled {
+    opacity: .35;
+    pointer-events: none;
+  }
+  .known-include-label {
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .known-include-toggle {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    font-family: inherit;
+  }
+  .kit-track {
+    display: inline-block;
+    width: 30px;
+    height: 16px;
+    border-radius: 8px;
+    background: var(--green);
+    position: relative;
+    transition: background .2s;
+    flex-shrink: 0;
+  }
+  .kit-track.off {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+  }
+  .kit-thumb {
+    display: block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #fff;
+    position: absolute;
+    top: 2px;
+    left: 16px;
+    transition: left .2s;
+  }
+  .kit-track.off .kit-thumb {
+    left: 2px;
+  }
+  .kit-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--green);
+    min-width: 20px;
+    transition: color .2s;
+  }
+  .kit-label.off {
+    color: var(--muted);
+  }
 
   /* RESULT */
   .result-card {
@@ -654,9 +721,13 @@
         <button class="filter-btn" id="btn-known-only" onclick="toggleKnownOnly(this)">
           ✅ Umím <span class="count" id="cnt-known-only">0</span>
         </button>
-        <button class="filter-btn" id="btn-exclude-known" onclick="toggleExcludeKnown(this)">
-          🚫 Vynechat Umím <span class="count" id="cnt-exclude-known">0</span>
-        </button>
+        <div id="known-include-row" class="known-include-row">
+          <span class="known-include-label">Zahrnout v testu</span>
+          <button class="known-include-toggle" id="btn-include-known" onclick="toggleExcludeKnown()" title="Zahrnout/vyloučit otázky označené Umím z tréninku">
+            <span class="kit-track"><span class="kit-thumb"></span></span>
+            <span class="kit-label" id="kit-label-text">ZAP</span>
+          </button>
+        </div>
         <button class="filter-btn" id="btn-anone-only" onclick="toggleAnoNe(this)">
           🔀 Ano / Ne <span class="count" id="cnt-anone">95</span>
         </button>
@@ -909,6 +980,12 @@
 </div>
 
 <script>
+window.onerror = function(msg, src, line, col, err) {
+  var d = document.getElementById('_err');
+  if (!d) { d = document.createElement('div'); d.id = '_err'; d.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#c00;color:#fff;font-size:13px;padding:8px 12px;z-index:9999;font-family:monospace'; document.body && document.body.appendChild(d); }
+  d.textContent = 'JS ERROR line ' + line + ': ' + msg;
+  return false;
+};
 const MNEMONICS = {
   "28007.1": "Banka je na tebe HRUBÁ – zveřejňuje HRUBÉ NOMINÁLNÍ sazby. Nikdy ti neukáže čistou ani reálnou. Hrubé = nominální, banka schová zbytek.",
   "28393.1": "2 % p.m. = Per MĚSÍC. Měsíc bije rok! Ostatní nabídky jsou roční, ale p.m. se složí 12krát → 24 % ročně. Měsíční sazba = největší zlatý poklad.",
@@ -3420,7 +3497,7 @@ function _applyAnsTextFilter(qs) {
       if (hasDigit) return { exact: true, re: new RegExp('(?<![\\d])' + n.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '(?![\\d])','i') };
       return { exact: false, words: n.split(/\s+/).filter(Boolean) };
     });
-    function _mn(reg, h) { return reg.exact ? reg.re.test(h) : reg.words.every(w => h.toLowerCase().includes(w)); }
+    const _mn = (reg, h) => reg.exact ? reg.re.test(h) : reg.words.every(w => h.toLowerCase().includes(w));
     qs = qs.filter(q => {
       const full = q.otazka + ' ' + Object.values(q.odpovedi).map(a => a.text).join(' ');
       const ans = Object.values(q.odpovedi).map(a => a.text).join(' ');
@@ -3517,10 +3594,10 @@ function getFilteredQuestions() {
           return { exact: false, words };
         }
       });
-      function matchNeedle(reg, haystack) {
+      const matchNeedle = (reg, haystack) => {
         if (reg.exact) return reg.re.test(haystack);
         return reg.words.every(w => haystack.toLowerCase().includes(w));
-      }
+      };
     qs = qs.filter(q => {
       const haystackFull = q.otazka + ' ' + Object.values(q.odpovedi).map(a => a.text).join(' ');
       const haystackAnswers = Object.values(q.odpovedi).map(a => a.text).join(' ');
@@ -3598,10 +3675,10 @@ function updateQueue() {
           return { exact: false, words };
         }
       });
-      function matchNeedle(reg, haystack) {
+      const matchNeedle = (reg, haystack) => {
         if (reg.exact) return reg.re.test(haystack);
         return reg.words.every(w => haystack.toLowerCase().includes(w));
-      }
+      };
       const tfCount = ALL_QUESTIONS.filter(q => {
         const haystackFull = q.otazka + ' ' + Object.values(q.odpovedi).map(a => a.text).join(' ');
         const haystackAnswers = Object.values(q.odpovedi).map(a => a.text).join(' ');
@@ -3619,23 +3696,7 @@ function updateQueue() {
   const _anoNeCnt = document.getElementById('cnt-anone');
   if (_anoNeCnt) _anoNeCnt.textContent = _base.filter(_isAnoNe).length;
 
-  // Exclude-known count: show how many known questions are in current base pool
-  const _exKnownEl = document.getElementById('cnt-exclude-known');
-  if (_exKnownEl) {
-    const _srEx = loadSR();
-    _exKnownEl.textContent = _base.filter(q => _srEx[q.id] && _srEx[q.id].type === 'known').length;
-  }
-  // Disable "Vynechat Umím" when "Umím" (knownOnly) is active
-  const _btnExKnown = document.getElementById('btn-exclude-known');
-  if (_btnExKnown) {
-    if (state.knownOnly) {
-      _btnExKnown.classList.add('disabled');
-      _btnExKnown.setAttribute('disabled', '');
-    } else {
-      _btnExKnown.classList.remove('disabled');
-      _btnExKnown.removeAttribute('disabled');
-    }
-  }
+  syncKnownIncludeToggle();
 
   updateBookmarkBadge();
   updateTrainingMax();
@@ -4337,6 +4398,7 @@ function goHome() {
   setWrongOnlyFiltersDisabled(false);
   showScreen('screen-home');
   updateHomeBanner();
+  checkContinueBanner();
 }
 
 function renderExamDots() {
@@ -4932,23 +4994,34 @@ function toggleKnownOnly(btn) {
   // If turning on knownOnly, disable excludeKnown (incompatible)
   if (!state.knownOnly && state.excludeKnown) {
     state.excludeKnown = false;
-    const exBtn = document.getElementById('btn-exclude-known');
-    if (exBtn) exBtn.classList.remove('active');
   }
   state.knownOnly = !state.knownOnly;
   btn.classList.toggle('active', state.knownOnly);
+  syncKnownIncludeToggle();
   const anySpecial = state.wrongOnly || state.bookmarksOnly || state.knownOnly;
   setWrongOnlyFiltersDisabled(anySpecial);
   setBookmarksOnlyFiltersDisabled(anySpecial);
   updateQueue();
 }
 
-function toggleExcludeKnown(btn) {
+function toggleExcludeKnown() {
   // Cannot combine with knownOnly (which shows ONLY known)
   if (state.knownOnly) return;
   state.excludeKnown = !state.excludeKnown;
-  btn.classList.toggle('active', state.excludeKnown);
+  syncKnownIncludeToggle();
   updateQueue();
+}
+
+function syncKnownIncludeToggle() {
+  const track = document.querySelector('#btn-include-known .kit-track');
+  const label = document.getElementById('kit-label-text');
+  const row   = document.getElementById('known-include-row');
+  if (!track) return;
+  // "Zahrnout v testu" = ON means excludeKnown is FALSE
+  const included = !state.excludeKnown;
+  track.classList.toggle('off', !included);
+  if (label) { label.textContent = included ? 'ZAP' : 'VYP'; label.classList.toggle('off', !included); }
+  if (row)   row.classList.toggle('disabled', state.knownOnly);
 }
 
 function toggleAnoNe(btn) {
@@ -5049,15 +5122,18 @@ function checkContinueBanner() {
   if (!banner) return;
   if (!saved || !saved.queueIds || !saved.queueIds.length) { banner.style.display = 'none'; return; }
   const remaining = saved.queueIds.length - (saved.sessionIdx || 0);
-  const d = new Date(saved.savedAt);
-  const timeStr = d.toLocaleDateString('cs-CZ') + ' ' + d.toLocaleTimeString('cs-CZ', {hour:'2-digit',minute:'2-digit'});
+  if (remaining <= 0) { banner.style.display = 'none'; clearSavedSession(); return; }
   const sub = document.getElementById('continue-banner-sub');
-  if (sub) sub.textContent = `${remaining} otázek zbývá · uloženo ${timeStr}`;
+  if (sub) sub.textContent = 'Zbývá ' + remaining + ' z ' + saved.queueIds.length + ' otázek';
   banner.style.display = 'flex';
 }
 
-// ── SAVE & DOWNLOAD ──
-function saveAndDownload() {
-  exportSR();
-}
-y
+// Init
+initCats();
+updateQueue();
+updateTrainingMax();
+updateSRBadge();
+updateBookmarkBadge();
+initTheme();
+checkContinueBanner();
+</script>
