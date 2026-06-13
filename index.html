@@ -4139,8 +4139,13 @@ function doResetConfirmed() {
   updateSRBadge();
 }
 function exportSR() {
-  const data = loadSR();
-  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const bundle = {
+    _version: 2,
+    sr: loadSR(),
+    bookmarks: [...loadBookmarks()],
+    session: localStorage.getItem(SESSION_KEY) || null
+  };
+  const blob = new Blob([JSON.stringify(bundle, null, 2)], {type:'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'spot_pokrok_' + new Date().toISOString().slice(0,10) + '.json';
@@ -4155,10 +4160,25 @@ function importSR() {
     const reader = new FileReader();
     reader.onload = ev => {
       try {
-        const data = JSON.parse(ev.target.result);
-        saveSR(data);
+        const raw = JSON.parse(ev.target.result);
+        // Support both new bundle format (_version:2) and legacy plain SR object
+        if (raw._version === 2) {
+          saveSR(raw.sr || {});
+          saveBookmarks(new Set(raw.bookmarks || []));
+          if (raw.session) localStorage.setItem(SESSION_KEY, raw.session);
+          else localStorage.removeItem(SESSION_KEY);
+          const srCount = Object.keys(raw.sr || {}).length;
+          const bmCount = (raw.bookmarks || []).length;
+          alert('Import úspěšný!
+Pokrok: ' + srCount + ' záznamů
+Nejisté: ' + bmCount + ' otázek' + (raw.session ? '
+Rozehraná session: obnovena' : ''));
+        } else {
+          // Legacy: plain SR object
+          saveSR(raw);
+          alert('Import úspěšný! Načteno ' + Object.keys(raw).length + ' záznamů.');
+        }
         updateSRBadge();
-        alert('Import úspěšný! Načteno ' + Object.keys(data).length + ' záznamů.');
       } catch { alert('Chyba při importu souboru.'); }
     };
     reader.readAsText(file);
@@ -5041,64 +5061,6 @@ function checkContinueBanner() {
 
 // ── SAVE & DOWNLOAD ──
 function saveAndDownload() {
-  saveSession();
-  const keys = [SESSION_KEY, SR_KEY, BM_KEY, 'spot_theme'];
-  const data = {};
-  keys.forEach(k => {
-    const v = localStorage.getItem(k);
-    if (v !== null) data[k] = v;
-  });
-
-  const CLOSE = '<' + '/script';
-  const safeJson = JSON.stringify(data).replace(new RegExp(CLOSE, 'gi'), '<\\' + '/script');
-
-  const html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
-  const slotOpen  = '<script id="embedded-data-slot">';
-  const slotClose = CLOSE + '>';
-  const slotStart = html.indexOf(slotOpen);
-  const slotEnd   = html.indexOf(slotClose, slotStart) + slotClose.length;
-  if (slotStart === -1) { alert('Chyba: nelze najít slot pro data.'); return; }
-
-  const newSlot = slotOpen + 'const EMBEDDED_DATA = ' + safeJson + ';' + CLOSE + '>';
-  const newHtml = html.slice(0, slotStart) + newSlot + html.slice(slotEnd);
-
-  const blob = new Blob([newHtml], { type: 'text/html' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href = url;
-  a.download = document.title.replace(/[^a-z0-9áčďéěíňóřšťúůýž ]/gi, '') + ' - záloha.html';
-  a.click();
-  URL.revokeObjectURL(url);
+  exportSR();
 }
-
-// Init
-initCats();
-updateQueue();
-updateTrainingMax();
-updateSRBadge();
-updateBookmarkBadge();
-initTheme();
-checkContinueBanner();
-</script>
-
-<!-- Reset confirmation modal -->
-<style>
-  #modal-reset {
-    display: none; position: fixed; inset: 0;
-    background: rgba(0,0,0,.6); backdrop-filter: blur(4px);
-    z-index: 9999; align-items: center; justify-content: center;
-  }
-  .modal-box {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 16px; padding: 32px 28px 24px;
-    max-width: 360px; width: 90%; text-align: center;
-    box-shadow: 0 20px 60px rgba(0,0,0,.5);
-  }
-  .modal-icon { font-size: 36px; margin-bottom: 12px; }
-  .modal-title { font-family: 'DM Serif Display', serif; font-size: 20px; color: var(--text); margin-bottom: 8px; }
-  .modal-text { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 24px; }
-  .modal-btns { display: flex; gap: 10px; }
-  .modal-btn-no {
-    flex: 1; padding: 11px; border-radius: 10px;
-    background: var(--surface2); border: 1px solid var(--border);
-    color: var(--text); font-family
+y
